@@ -25,18 +25,18 @@ int epoch_matcher(galtime_t obsTime, vector<ephem_t> eph, int ind2ex)
 	// 		index = i; // save index
 	// 	}
 	// }
+    // The set closest in time, if within 4 hours (the I/NAV fit interval):
+    // daily files have gaps of more than an hour for some satellites.
     int index = -1;
-    double dt;
+    double best = 4.0 * SECONDS_IN_HOUR;
     for (unsigned i = 0; i < eph.size(); i++) {
         if (eph.at(i).vflg == 1)
         {
-            dt = subGalTime(obsTime, eph.at(i).toc);
-            
-            if (dt>=-SECONDS_IN_HOUR && dt<SECONDS_IN_HOUR)
+            double dt = fabs(subGalTime(obsTime, eph.at(i).toc));
+            if (dt < best)
             {
-                //cout << "EM: " << dt << " - " << eph.at(i).svid + 1 << endl;
+                best = dt;
                 index = i;
-                break;
             }
         }
     }

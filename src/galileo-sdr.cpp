@@ -108,7 +108,7 @@ void *galileo_task(void *arg)
 
     int i;
     channel_t chan[MAX_CHAN];
-    double elvmask = 10; // in degree
+    double elvmask = 5; // in degree (gps-sdr-sim uses 0; receivers mask at 5-10)
 
     int ip, qp;
     int iTable;
@@ -212,9 +212,46 @@ void *galileo_task(void *arg)
     ////////////////////////////////////////////////////////////
 
     memcpy(llhr, llh, 3 * sizeof(double)); // Initialize the global llhr array (from socket.h)
-    // Start auxiliary task threads
-    std::thread th_loc(&locations_thread, llhr);
-    th_loc.detach(); // Detach to prevent terminate() when th_loc goes out of scope
+
+    // Motion file (-x): 10 Hz lines of time,lat,lon,height (deg, deg, m
+    // ellipsoid), the gps-sdr-sim -x format. It drives the position instead
+    // of the UDP location updates.
+    std::vector<std::array<double, 3>> motion;
+    if (s->opt.umfile[0])
+    {
+        FILE *fm = fopen(s->opt.umfile, "r");
+        if (fm == NULL)
+        {
+            fprintf(stderr, "ERROR: Failed to open motion file %s\n", s->opt.umfile);
+            exit(1);
+        }
+        char line[256];
+        double tm, la, lo, hh;
+        while (fgets(line, sizeof(line), fm) && (int)motion.size() < USER_MOTION_SIZE)
+            if (sscanf(line, "%lf,%lf,%lf,%lf", &tm, &la, &lo, &hh) == 4)
+                motion.push_back({la, lo, hh});
+        fclose(fm);
+        if (motion.empty())
+        {
+            fprintf(stderr, "ERROR: no motion in %s\n", s->opt.umfile);
+            exit(1);
+        }
+        llh[0] = motion[0][0];
+        llh[1] = motion[0][1];
+        llh[2] = motion[0][2];
+        memcpy(llhr, llh, 3 * sizeof(double));
+        if (s->opt.iduration > (int)motion.size())
+            s->opt.iduration = (int)motion.size();
+        fprintf(stderr, "Motion file: %d points (%.1f s)\n", (int)motion.size(), motion.size() / 10.0);
+    }
+#ifndef _WIN32
+    else
+    {
+        // Start auxiliary task threads
+        std::thread th_loc(&locations_thread, llhr);
+        th_loc.detach(); // Detach to prevent terminate() when th_loc goes out of scope
+    }
+#endif
 
     ////////////////////////////////////////////////////////////
     // Load navigation messages and satellite ephemeris
@@ -245,11 +282,20 @@ void *galileo_task(void *arg)
     llh[0] = llh[0] / R2D; // convert to RAD
     llh[1] = llh[1] / R2D; // convert to RAD
 
+    duration = (double)s->opt.iduration / 10.0;   // the motion file may have shortened it
     iduration = (int)(duration * 10.0 + 0.5);
     numd = iduration;
 
     for (int i = 0; i < numd; i++)
-        llh2xyz(llh, xyz[i].data());  // Convert llh to xyz for all steps
+    {
+        if (!motion.empty())
+        {
+            double p[3] = {motion[i][0] / R2D, motion[i][1] / R2D, motion[i][2]};
+            llh2xyz(p, xyz[i].data());
+        }
+        else
+            llh2xyz(llh, xyz[i].data());  // Convert llh to xyz for all steps
+    }
 
     ////////////////////////////////////////////////////////////
     // Receiver position
@@ -474,15 +520,23 @@ void *galileo_task(void *arg)
 
     for (iumd = 1; iumd < numd; iumd++)
     {
-        // Copy contents of llh received over the locations thread
-        if (llhr != NULL)
-            memcpy(llh, llhr, 3 * sizeof(double));
+        if (motion.empty())
+        {
+            // Copy contents of llh received over the locations thread
+            if (llhr != NULL)
+                memcpy(llh, llhr, 3 * sizeof(double));
+            llh[0] = llh[0] / R2D; // convert to RAD
+            llh[1] = llh[1] / R2D; // convert to RAD
 
-        llh[0] = llh[0] / R2D; // convert to RAD
-        llh[1] = llh[1] / R2D; // convert to RAD
-
-        if (iumd < (int)xyz.size())
-            llh2xyz(llh, xyz[iumd].data());
+            if (iumd < (int)xyz.size())
+                llh2xyz(llh, xyz[iumd].data());
+        }
+        else
+        {
+            llh[0] = motion[iumd][0] / R2D;
+            llh[1] = motion[iumd][1] / R2D;
+            llh[2] = motion[iumd][2];
+        }
 
         for (i = 0; i < MAX_CHAN; i++)
         {
@@ -674,7 +728,11 @@ void *galileo_task(void *arg)
 
             for (int sv = 0; sv < MAX_SAT; sv++)
             {
-                current_eph[sv] = epoch_matcher(grx, eph_vector[sv], current_eph[sv]);
+                // Keep the last set when none is within an hour (a gap in the file):
+                // an allocated channel must never index set -1.
+                int matched = epoch_matcher(grx, eph_vector[sv], current_eph[sv]);
+                if (matched >= 0)
+                    current_eph[sv] = matched;
                 // if (current_eph[sv] != old_eph[sv])
                 //     cout << endl << "Changed eph for " << sv << " - " << current_eph[sv] << " : " << old_eph[sv] << endl;
             }

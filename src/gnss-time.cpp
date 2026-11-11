@@ -88,6 +88,9 @@ double subGalTime(galtime_t g1, galtime_t g0)
 galtime_t incGalTime(galtime_t g, double dt)
 {
     g.sec = g.sec + dt;
+    // Keep sec inside the week: TOW and week number in the I/NAV pages come from here.
+    while (g.sec >= SECONDS_IN_WEEK) { g.sec -= SECONDS_IN_WEEK; g.week++; }
+    while (g.sec < 0.0) { g.sec += SECONDS_IN_WEEK; g.week--; }
     return g;
 }
 
@@ -145,14 +148,15 @@ void set_scenario_start_time(galtime_t *g0, galtime_t gmin, galtime_t gmax, date
                         tl.y, tl.m, tl.d, tl.hh, tl.mm, tl.sec, g0->week,
                         g0->sec);
 
-                fprintf(stderr, "ERROR: Invalid start time.\n");
+                // tmin/tmax come from the lowest-numbered satellite only; each
+                // satellite picks its own set within an hour, so carry on.
+                fprintf(stderr, "WARNING: start outside the first satellite's sets\n");
                 fprintf(stderr, "tmin = %4d/%02d/%02d,%02d:%02d:%02.0f (%d:%.0f)\n",
                         tmin->y, tmin->m, tmin->d, tmin->hh, tmin->mm, tmin->sec, gmin.week,
                         gmin.sec);
                 fprintf(stderr, "tmax = %4d/%02d/%02d,%02d:%02d:%02.0f (%d:%.0f)\n",
                         tmax->y, tmax->m, tmax->d, tmax->hh, tmax->mm, tmax->sec, gmax.week,
                         gmax.sec);
-                exit(1);
             }
         }
     }

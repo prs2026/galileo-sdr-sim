@@ -139,6 +139,7 @@ void usage(char *progname)
         "  -r <Cache Dir>   RINEX cache directory (default: ./rinex_cache)\n"
         "  -o <File sink>   File to store IQ samples\n"
         "  -l <location>    Lat,Lon,Hgt (static mode) e.g. 35.274,137.014,100\n"
+        "  -x <motion>      10 Hz motion file: time,lat,lon,height per line (as gps-sdr-sim -x)\n"
         "  -t <date,time>   Scenario start time YYYY/MM/DD,hh:mm:ss\n"
         "  -T <date,time>   Overwrite TOC and TOE to scenario start time\n"
         "  -d <duration>    Duration [sec] (max: %.0f)\n"
@@ -169,6 +170,7 @@ int main(int argc, char *argv[])
     s.finished = false;
     s.opt.navfile[0] = 0;
     s.opt.tvfile[0] = 0;
+    s.opt.umfile[0] = 0;
     s.opt.outfile[0] = 0;
 
     s.opt.g0.week = -1;
@@ -203,7 +205,7 @@ int main(int argc, char *argv[])
     float *buffer = NULL;
     const void **buffer_ptr = NULL;
 
-    while ((result = getopt(argc, argv, "e:n:o:u:g:l:T:t:d:G:a:p:iI:U:b:vDr:")) != -1)
+    while ((result = getopt(argc, argv, "e:n:o:u:x:g:l:T:t:d:G:a:p:iI:U:b:vDr:")) != -1)
     {
         switch (result)
         {
@@ -217,6 +219,11 @@ int main(int argc, char *argv[])
 
         case 'o':
             strcpy(s.opt.outfile, optarg);
+            break;
+
+        case 'x':
+            strncpy(s.opt.umfile, optarg, MAX_CHAR - 1);
+            s.opt.umfile[MAX_CHAR - 1] = 0;
             break;
 
         case 'l':

@@ -73,7 +73,9 @@
 /*! RF-frontend constants */
 
 #define TX_FREQUENCY 1575420000
-#define TX_SAMPLERATE 2484000.0
+#ifndef TX_SAMPLERATE
+#define TX_SAMPLERATE 2484000.0   // override with -DTX_SAMPLERATE=... (must match the TX device)
+#endif
 #define TX_BANDWIDTH TX_SAMPLERATE * 2
 
 #define NUM_BUFFERS 64
@@ -103,7 +105,7 @@ const float SAMP_RATE = 2484000.0;
 #define PI 3.141592653589793
 
 /*! \brief Maximum length of a line in a text file (RINEX, motion) */
-#define MAX_CHAR (120)
+#define MAX_CHAR (1024)   // paths: Windows temp and scenario folders exceed 120
 
 /*! \brief Maximum number of satellites in RINEX file */
 #define MAX_SAT (36) // checked the numbers online

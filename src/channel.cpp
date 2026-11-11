@@ -57,7 +57,7 @@ int allocateChannel(channel_t *chan,
         eph = eph_vector[sv][current_eph[sv]];
         //cout << "GRX: " << grx.sec << " : " << current_eph[sv] << endl;
 
-        if (checkSatVisibility(eph, grx, xyz, 10, azel, sv + 1) == 1)
+        if (checkSatVisibility(eph, grx, xyz, elvMask, azel, sv + 1) == 1)
         {
             nsat++; // Number of visible satellites
 

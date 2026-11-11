@@ -33,7 +33,7 @@ void sockclose(int s)
 
 void socksend(int s, void *data, int siz)
 {
-    send(s, data, siz, 0);
+    send(s, (const char *)data, siz, 0);
 }
 
 long int timem()
@@ -62,7 +62,7 @@ int udpinit(short port)
 int udprecv(int s, void *data, int size)
 {
     struct sockaddr from;
-    return recvfrom(s, data, size, 0, &from, 0);
+    return recvfrom(s, (char *)data, size, 0, &from, 0);
 }
 
 double raw_bits[INCOMING_SIZE];
